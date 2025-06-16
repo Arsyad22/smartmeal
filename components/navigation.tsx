@@ -2,8 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs'
 
 export default function Navigation() {
+  const { user } = useUser();
   const pathname = usePathname()
 
   const navItems = [
@@ -39,13 +41,21 @@ export default function Navigation() {
             ))}
           </div>
 
-          <div className="flex space-x-4">
-            <Link href="/signin" className="btn-secondary text-sm">
-              Sign In
-            </Link>
-            <Link href="/signup" className="btn-primary text-sm">
-              Sign Up
-            </Link>
+          <div className="flex space-x-4 items-center">
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="btn-secondary text-sm">Sign In</button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button className="btn-primary text-sm">Sign Up</button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <span className="font-medium text-gray-700 mr-2">
+                {user?.firstName ? `Hi, ${user.firstName}` : user?.username || 'Account'}
+              </span>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
           </div>
         </div>
       </div>

@@ -1,8 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Navigation from "@/components/navigation"
 import { Eye, Edit, Trash2 } from "lucide-react"
+import { useUser } from "@clerk/nextjs";
+import { getMealPlan, removeRecipeFromMealPlan, addRecipeToMealPlan } from "@/lib/mealPlanFirestore";
+import MealPlanModal from "@/components/MealPlanModal";
 
 interface SavedMeal {
   id: number
@@ -13,48 +16,58 @@ interface SavedMeal {
 }
 
 export default function MyPlanPage() {
-  const [savedMeals, setSavedMeals] = useState<SavedMeal[]>([
-    {
-      id: 1,
-      name: "Mediterranean Quinoa Bowl",
-      calories: 420,
-      mealType: "Lunch",
-      dateAdded: "2024-01-15",
-    },
-    {
-      id: 2,
-      name: "Grilled Salmon with Asparagus",
-      calories: 380,
-      mealType: "Dinner",
-      dateAdded: "2024-01-14",
-    },
-    {
-      id: 3,
-      name: "Greek Yogurt Parfait",
-      calories: 280,
-      mealType: "Breakfast",
-      dateAdded: "2024-01-13",
-    },
-    {
-      id: 4,
-      name: "Chicken Power Bowl",
-      calories: 520,
-      mealType: "Lunch",
-      dateAdded: "2024-01-12",
-    },
-  ])
+  const { user, isSignedIn } = useUser();
+  const [savedMeals, setSavedMeals] = useState<SavedMeal[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleView = (mealName: string) => {
-    alert(`Viewing recipe for: ${mealName}`)
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMeal, setModalMeal] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!isSignedIn || !user) return;
+    setLoading(true);
+    setError(null);
+    getMealPlan(user.id)
+      .then((recipes) => {
+        setSavedMeals(recipes.map((r: any) => ({
+          ...r,
+          id: r.id,
+          name: r.title || r.name,
+          calories: r.nutrition?.nutrients?.find((n: any) => n.name === "Calories")?.amount || r.calories || 0,
+          mealType: r.mealType || r.dishTypes?.[0] || "Meal",
+          dateAdded: r.dateAdded || r.createdAt || new Date().toISOString(),
+          notes: r.notes || "",
+          servings: r.servings || 1,
+        })));
+      })
+      .catch(() => setError("Failed to load your meal plan."))
+      .finally(() => setLoading(false));
+  }, [user, isSignedIn]);
+
+  const handleView = (mealId: number) => {
+    const meal = savedMeals.find(m => m.id === mealId);
+    setModalMeal(meal || null);
+    setModalOpen(true);
   }
 
-  const handleEdit = (mealName: string) => {
-    alert(`Editing: ${mealName}`)
+  const handleEdit = (mealId: number) => {
+    const meal = savedMeals.find(m => m.id === mealId);
+    setModalMeal(meal || null);
+    setModalOpen(true);
   }
 
-  const handleDelete = (id: number, mealName: string) => {
+  const handleModalSave = async (updatedMeal: any) => {
+    if (!isSignedIn || !user) return;
+    await addRecipeToMealPlan(user.id, updatedMeal);
+    setSavedMeals(savedMeals.map(m => m.id === updatedMeal.id ? { ...m, ...updatedMeal } : m));
+  }
+
+  const handleDelete = async (id: number, mealName: string) => {
+    if (!isSignedIn || !user) return;
     if (confirm(`Are you sure you want to remove "${mealName}" from your plan?`)) {
-      setSavedMeals(savedMeals.filter((meal) => meal.id !== id))
+      await removeRecipeFromMealPlan(user.id, id.toString());
+      setSavedMeals(savedMeals.filter((meal) => meal.id !== id));
     }
   }
 
@@ -108,14 +121,14 @@ export default function MyPlanPage() {
 
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => handleView(meal.name)}
+                      onClick={() => handleView(meal.id)}
                       className="flex-1 flex items-center justify-center space-x-2 py-2 px-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                     >
                       <Eye className="w-4 h-4" />
                       <span className="text-sm">View</span>
                     </button>
                     <button
-                      onClick={() => handleEdit(meal.name)}
+                      onClick={() => handleEdit(meal.id)}
                       className="flex-1 flex items-center justify-center space-x-2 py-2 px-3 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
                     >
                       <Edit className="w-4 h-4" />
@@ -146,6 +159,12 @@ export default function MyPlanPage() {
           </div>
         )}
       </main>
-    </div>
+    <MealPlanModal
+      open={modalOpen}
+      onClose={() => setModalOpen(false)}
+      meal={modalMeal}
+      onSave={handleModalSave}
+    />
+  </div>
   )
 }

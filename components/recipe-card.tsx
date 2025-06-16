@@ -6,6 +6,7 @@ interface RecipeCardProps {
   title: string
   description: string
   calories: number
+  caloriesUnit?: string // e.g. 'kcal', 'g protein', 'g carbs'
   cookTime?: string
   servings?: number
   image?: string
@@ -16,6 +17,7 @@ export default function RecipeCard({
   title,
   description,
   calories,
+  caloriesUnit = 'kcal',
   cookTime = "30 min",
   servings = 2,
   image,
@@ -45,7 +47,7 @@ export default function RecipeCard({
               {servings}
             </div>
           </div>
-          <span className="font-medium text-purple-600">{calories} kcal</span>
+          <span className="font-medium text-purple-600">{calories} {caloriesUnit}</span>
         </div>
 
         <button onClick={onAddToPlan} className="w-full btn-primary text-sm">
