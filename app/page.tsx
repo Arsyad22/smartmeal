@@ -15,7 +15,7 @@ export default function HomePage() {
       title: "Mediterranean Quinoa Bowl",
       description: "Fresh vegetables with quinoa and tahini dressing",
       calories: 420,
-      cookTime: "25 min",
+      cookTime: "55 min",
       servings: 2,
     },
     {
