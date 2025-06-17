@@ -95,7 +95,7 @@ export default function MyPlanPage() {
               <p className="text-pink-600">Total Calories</p>
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-blue-700">{Math.round(totalCalories / savedMeals.length)}</h3>
+              <h3 className="text-2xl font-bold text-blue-700">{savedMeals.length > 0 ? Math.round(totalCalories / savedMeals.length) : 0}</h3>
               <p className="text-blue-600">Avg per Meal</p>
             </div>
           </div>

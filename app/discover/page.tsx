@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import Navigation from "@/components/navigation"
 import SearchFilters from "@/components/search-filters"
 import RecipeCard from "@/components/recipe-card"
+import { addRecipeToMealPlan } from "@/lib/mealPlanFirestore";
+import { useUser } from "@clerk/nextjs";
 
 export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -11,53 +13,51 @@ export default function DiscoverPage() {
   const [caloricGoal, setCaloricGoal] = useState("Any Calories")
   const [mealType, setMealType] = useState("All Meals")
 
-  const searchResults = [
-    {
-      title: "Thai Green Curry",
-      description: "Aromatic coconut curry with fresh vegetables",
-      calories: 380,
-      cookTime: "25 min",
-      servings: 3,
-    },
-    {
-      title: "Quinoa Buddha Bowl",
-      description: "Colorful bowl with quinoa, roasted vegetables, and tahini",
-      calories: 420,
-      cookTime: "30 min",
-      servings: 2,
-    },
-    {
-      title: "Baked Cod with Herbs",
-      description: "Flaky white fish with Mediterranean herbs",
-      calories: 290,
-      cookTime: "20 min",
-      servings: 1,
-    },
-    {
-      title: "Sweet Potato Black Bean Tacos",
-      description: "Roasted sweet potato with black beans in corn tortillas",
-      calories: 350,
-      cookTime: "35 min",
-      servings: 2,
-    },
-    {
-      title: "Mushroom Risotto",
-      description: "Creamy arborio rice with wild mushrooms",
-      calories: 480,
-      cookTime: "40 min",
-      servings: 4,
-    },
-    {
-      title: "Chicken Caesar Salad",
-      description: "Grilled chicken over crisp romaine with parmesan",
-      calories: 320,
-      cookTime: "15 min",
-      servings: 1,
-    },
-  ]
+  const { user, isSignedIn } = useUser();
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  const handleAddToPlan = (recipeName: string) => {
-    alert(`Added "${recipeName}" to your meal plan!`)
+  // Fetch recipes from API when search/filter changes
+  useEffect(() => {
+    const fetchRecipes = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (searchQuery) params.append('query', searchQuery);
+        if (dietaryPreference && dietaryPreference !== 'All Diets') params.append('diet', dietaryPreference);
+        if (caloricGoal && caloricGoal !== 'Any Calories') params.append('calories', caloricGoal);
+        if (mealType && mealType !== 'All Meals') params.append('mealType', mealType);
+        const res = await fetch(`/api/recipes/search?${params.toString()}`);
+        if (!res.ok) throw new Error('Failed to fetch recipes');
+        const data = await res.json();
+        setSearchResults(Array.isArray(data) ? data : []);
+      } catch (err: any) {
+        setError(err.message || 'Error fetching recipes');
+        setSearchResults([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRecipes();
+  }, [searchQuery, dietaryPreference, caloricGoal, mealType]);
+
+  // Add to plan logic
+  const handleAddToPlan = async (recipe: any) => {
+    if (!isSignedIn || !user) {
+      setToast("Please sign in to add to your plan.");
+      setTimeout(() => setToast(null), 2000);
+      return;
+    }
+    try {
+      await addRecipeToMealPlan(user.id, recipe);
+      setToast(`Added "${recipe.title || recipe.name}" to your meal plan!`);
+    } catch (err) {
+      setToast("Failed to add recipe. Please try again.");
+    }
+    setTimeout(() => setToast(null), 2000);
   }
 
   return (
@@ -84,11 +84,22 @@ export default function DiscoverPage() {
 
         <section>
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Search Results ({searchResults.length} recipes)</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {searchResults.map((recipe, index) => (
-              <RecipeCard key={index} {...recipe} onAddToPlan={() => handleAddToPlan(recipe.title)} />
-            ))}
-          </div>
+          {toast && (
+            <div className="mb-4 text-center text-white bg-purple-500 rounded-lg px-4 py-2 font-medium shadow-lg">{toast}</div>
+          )}
+          {loading ? (
+            <div className="text-center py-8 text-purple-500 font-medium">Loading recipes...</div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-500 font-medium">{error}</div>
+          ) : searchResults.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 font-medium">No recipes found.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {searchResults.map((recipe, index) => (
+                <RecipeCard key={index} {...recipe} onAddToPlan={() => handleAddToPlan(recipe)} />
+              ))}
+            </div>
+          )}
         </section>
       </main>
     </div>
